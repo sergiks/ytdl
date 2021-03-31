@@ -19,9 +19,9 @@ $n = $Y->getInfo();
 
 // Generate html
 $html = $Y->formHtml();
-if( $n>0) $html .= $Y->linksHtml();
-
+if ($n > 0) {
+    $html .= $Y->linksHtml();
+}
+    
 // Output the page
-echo $Y->pageHtml( $html);
-
-
+echo $Y->pageHtml($html);

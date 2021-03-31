@@ -7,169 +7,195 @@
  */
 
 class YTDL {
-    public $videoId;	// YouTube video ID
-    public $videoData = array();	// general video infos
-    public $links = array();		// array of var quality links
+    const FIELD_NAME = 'video';
+    const KEY_NAME = 'player_response';
+
+    public $videoId; // YouTube video ID
+    public $videoData = array(); // general video infos
+    public $links = array(); // array of var quality links
 
     /**
      * Fetches info from a remote URL
      */
-    private function fetchInfo( $url) {
+    private function fetchInfo($url) {
         $ch = curl_init();
-        curl_setopt($ch, CURLOPT_URL, $url);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
-        curl_setopt($ch, CURLOPT_HEADER, 0);
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_HEADER => 0,
+        ]);
+
         $result = curl_exec($ch);
+        
         curl_close($ch);
+
         return $result;
     }
     
-    function setVideoId( $id='') {
-        $field = 'video';
-        
-        if( empty($id)) {
-            $in = filter_input( INPUT_GET, $field)?:filter_input( INPUT_POST, $field);
+
+    function setVideoId($id = '') {
+        if (empty($id)) {
+            $in = filter_input(INPUT_GET, self::FIELD_NAME) ?: filter_input(INPUT_POST, self::FIELD_NAME);
             // http://www.youtube.com/watch?v=27Ce--_qzFM&xxxxx
-            // youtu.be27Ce--_qzFM
-            if( empty($in)) return FALSE;
+            // youtu.be/27Ce--_qzFM
+            // 27Ce--_qzFM
+            if (empty($in)) return false;
             
-            if( preg_match( '#watch\?v=([^&]+)#', $in, $match)) {
+            if (preg_match( '#watch\?v=([^&]+)#', $in, $match)) {
                 $id = $match[1];
-            } elseif( preg_match( '#youtu.be/(.+)#', $in, $match)) {
+            } elseif (preg_match('#youtu.be/(.+)#', $in, $match)) {
                 $id = $match[1];
             } else {
-                return FALSE;
+                $id = $in;
             }
         }
+
         $this->videoId = $id;
     }
     
-    private function parseVideoData( $infoLine) {
+    private function parseVideoData($infoLine) {
         $videoData = array();
         parse_str( $infoLine, $videoData);
-        if( count( $videoData) == 0) {
+        if (0 === count($videoData)) {
             echo "Empty data. Html follows:";
             echo $infoLine;
             return;
         } else {
-            // print_r($video_data);
+            // all OK
+            // print_r($videoData);
         }
+
         $this->videoData = $videoData;
-        /* Keys of $this->videoData:
-            allow_ratings, length_seconds, video_id, watermark, avg_rating, pltype, fmt_list, fexp, storyboard_spec, 
-            status, sendtmp, ftoken, abd, plid, allow_embed, vq, c, video_verticals, iurlmaxres, account_playback_token, 
-            idpj, iurl, share_icons, token, title, ldpj, eventid, has_cc, adaptive_fmts, dashmpd, 
-            url_encoded_fmt_stream_map, ptk, view_count, track_embed, use_cipher_signature, iurlsd, keywords, 
-            timestamp, hl, muted, thumbnail_url, endscreen_module, author, dash
+
+        /* 
+            Keys of $this->videoData:
+            
+            csn, root_ve_type, vss_host, cr, host_language, hl, gapi_hint_params, 
+            innertube_api_key, innertube_api_version, innertube_context_client_version, 
+            watermark, c, cver, 
+            player_response, 
+            enablecsi, csi_page_type, use_miniplayer_ui, ps, fexp, fflags, status
         */
     }
+
     
     private function parseFormats() {
-        if( !isset( $this->videoData[ 'url_encoded_fmt_stream_map'])) {
-            echo "Error: No fmt_stream_map.";
-            return NULL;
+        if (! isset($this->videoData[self::KEY_NAME])) {
+            echo "Error: missing " . self::KEY_NAME;
+            return null;
         }
         
-        $formatsArray = explode( ',', $this->videoData['url_encoded_fmt_stream_map']);
-        foreach( $formatsArray AS $formatString) {
-            $format = array();
-            parse_str( $formatString, $format);
-            /* Example:
-                [sig] => 72C268F7B86365DBB49DF4F4DB2782962E5CC64F.CCCBFE67D7199276B7F7CCE792CCB8E97DC3E7F2
-                [type] => video/webm; codecs="vp8.0, vorbis"
-                [itag] => 45
-                [quality] => hd720
-                [fallback_host] => tc.v6.cache5.c.youtube.com
-                [url] => http://.... (long url with many params)
-            */
-            
-            // Decode the long url
-            $urlString = urldecode($format['url']);
-            $break = strpos( $urlString, '?');
-            $url = substr( $urlString, 0, $break);
-            $params = substr( $urlString, $break+1);
-    
-            $urlData = array();
-            parse_str( $params, $urlData);
-            /* Example $urlData:
-                [mt] => 1378753340
-                [mv] => m
-                [ipbits] => 8
-                [ratebypass] => yes
-                [sparams] => cp,id,ip,ipbits,itag,ratebypass,source,upn,expire
-                [source] => youtube
-                [ms] => au
-                [fexp] => 923435,932100,932217,914090,916626,901476,929117,929121,929906,929907,929922,929127,929129,929131,929930,936403,925726,925720,925722,925718,925714,929917,906945,929933,920302,906842,913428,919811,913563,919373,930803,938701,931924,936308,909549,900816,912711,904494,904497,939903,900375,900382,934507,907231,936312,906001
-                [expire] => 1378777057
-                [sver] => 3
-                [ip] => 77.72.198.21
-                [key] => yt1
-                [cp] => U0hWTVdSVV9KUUNONl9PTFlBOmU2dzRGc1NTV0ty
-                [upn] => g2xLgK0BHu4
-                [id] => 82ed6b50cb6f5b09
-                [itag] => 45
-            */
-            
-            // Build dl url
-            $urlData['downloadUrl'] = $urlString . "&signature=" . $format['sig'];
-            
-            // Add the array to links
-            $this->links[] = array_merge( $format, $urlData);
-        }
-        return count( $this->links);
+        $params = json_decode(urldecode($this->videoData[self::KEY_NAME]), true);
+
+        // video links
+        $formats = $params['streamingData']['formats'] ?? [];
+        $adaptiveFormats = $params['streamingData']['adaptiveFormats'] ?? [];
+        $this->links = array_merge($formats, $adaptiveFormats);
+
+        // video info
+        $this->videoDetails = $params['videoDetails'] ?? [];
+
+        /*
+            "url": "https://r1---sn-ab5l6nsy.googlevideo.com/videoplayback?expire=1617231413\u0026ei=1alkYOqxLYjfgwPc763QBg\u0026ip=134.209.162.109\u0026id=o-AIyG3PTAO5fhJ7mJbku4InY_0wFW2Jpjwj4-RIXQird_\u0026itag=18\u0026source=youtube\u0026requiressl=yes\u0026mh=oI\u0026mm=31,29\u0026mn=sn-ab5l6nsy,sn-ab5szn7e\u0026ms=au,rdu\u0026mv=m\u0026mvi=1\u0026pl=23\u0026initcwndbps=262500\u0026vprv=1\u0026mime=video/mp4\u0026ns=lASXP01ycvrkAM0rUm6Q4UsF\u0026gir=yes\u0026clen=1964769\u0026ratebypass=yes\u0026dur=43.096\u0026lmt=1616954619793082\u0026mt=1617209327\u0026fvip=1\u0026fexp=24001373,24007246\u0026c=WEB\u0026txp=5430434\u0026n=IcbL89tCxZF-WseYC7\u0026sparams=expire,ei,ip,id,itag,source,requiressl,vprv,mime,ns,gir,clen,ratebypass,dur,lmt\u0026sig=AOq0QJ8wRAIgZZ1Fz9rEZKDswn91STZ8orWQFHNYXmrI8FfJnFwFj5oCIB6EFwrPqooax32K5gn3Os3AukR0Ge1AXVVHqqiRwCre\u0026lsparams=mh,mm,mn,ms,mv,mvi,pl,initcwndbps\u0026lsig=AG3C_xAwRQIhALmNXbav6mopdsK7EIz1dj9gj-p3FranpRnAOxi682VxAiAFietCBjPwZG9muFG3FwB_2pBMBwEG79DnjG0LRTaNUw==",
+            "mimeType": "video/mp4; codecs=\"avc1.42001E, mp4a.40.2\"",
+            "bitrate": 365198,
+            "width": 640,
+            "height": 360,
+            "lastModified": "1616954619793082",
+            "contentLength": "1964769",
+            "quality": "medium",
+            "fps": 25,
+            "qualityLabel": "360p",
+        */
+
+
+        return count($this->links);
     }
     
     /**
      * Ouputs an html list of links found
      */
     function linksHtml() {
-        $html = '';
         $tmpl = <<<EOFHTML
 <h1>%s</h1>
 <div>
     <a href="http://www.youtube.com/watch?v=%s" target="_blank"><img src="%s" border="0"></a>
 </div>
-<ul>
+<table class="table">
+    <thead>
+        <tr>
+            <th>download</th>
+            <th>width &times; height</th>
+            <th>MIME and codec</th>
+            <th>file size</th>
+        </tr>
+    </thead>
+    <tbody>
 %s
-</ul>
+    </tbody>
+</table>
 EOFHTML;
-        foreach( $this->links AS $L) {
-            $html .= sprintf(
-                '<li><a href="/?action=download&mime=%s&url=%s&title=%s">%s</a> [%s]</li>' . PHP_EOL,
-                base64_encode( $L['type']),
-                base64_encode( $L['downloadUrl']),
-                base64_encode( $this->videoData['title']),
-                $L['quality'],
-                $L['type']
-            );
+
+        $row_template = <<<EOFROW
+<tr>
+    <td>
+        <a href="/?action=download&mime=%s&url=%s&title=%s">%s</a>
+    </td>
+    <td>%d&times;%d</td>
+    <td>%s</td>
+    <td>%dK</td>
+</tr>
+EOFROW;
+
+        $rows = [];
+        foreach ($this->links as $L) {
+            array_push($rows, sprintf(
+                $row_template,
+                base64_encode($L['mimeType']),
+                base64_encode($L['url']),
+                base64_encode($this->videoData['title']),
+                $L['qualityLabel'] ?? $L['quality'],
+                $L['width'],
+                $L['height'],
+                $L['mimeType'],
+                round($L['contentLength'] / 1024),
+            ));
         }
         
         $html = sprintf( $tmpl,
-            $this->videoData['title'],
-            $this->videoData['video_id'],
-            $this->videoData['iurl'],
-            $html
+            $this->videoDetails['title'],
+            $this->videoDetails['videoId'],
+            $this->videoDetails['thumbnail']['thumbnails'][0]['url'] ?? '',
+            implode(PHP_EOL, $rows)
         );
         return $html;
     }
     
-    function pageHtml( $content = '') {
+    
+    public function pageHtml($content = '')
+    {
         $tmpl = file_get_contents('ytdl.html');
         return sprintf( $tmpl, $content);
     }
     
-    function formHtml() {
+    public function formHtml()
+    {
         $tmpl = <<<HTML
-<div class="form">
-    <form action="/" method="post" name="getvideo">
-        <label for="video">YouTube video code or URL:</label>
-        <input id="video" type="text" name="video" maxlength="150" value="%s">
-        <button type="submit">Search</button>
-        <button type="reset">Cancel</button>
-    </form>
-</div>
+<form class="row row-cols-lg-auto g-3 align-items-center" action="/" method="post" name="getvideo">
+    <div class="col-12">
+        <div class="input-group">
+            <div class="input-group-text">@</div>
+            <input name="video" type="text" class="form-control" id="video" placeholder="YouTube link" value="%s">
+        </div>
+    </div>
+
+    <div class="col-12">
+        <button type="submit" class="btn btn-primary">Search</button>
+    </div>
+</form>
 HTML;
-        return sprintf( $tmpl, $this->videoId);
+        
+        return sprintf($tmpl, $this->videoId);
     }
     
     function getInfo() {
@@ -207,6 +233,4 @@ HTML;
         readfile($url);
         exit();
     }
-
-
 }
