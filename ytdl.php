@@ -181,16 +181,13 @@ EOFROW;
     public function formHtml()
     {
         $tmpl = <<<HTML
-<form class="row row-cols-lg-auto g-3 align-items-center" action="/" method="post" name="getvideo">
+<form class="row row-cols-lg-auto g-3 align-items-center my-5" action="/" method="post" name="getvideo">
     <div class="col-12">
-        <div class="input-group">
-            <div class="input-group-text">@</div>
-            <input name="video" type="text" class="form-control" id="video" placeholder="YouTube link" value="%s">
-        </div>
+        <input name="video" type="text" class="form-control" id="video" placeholder="YouTube video url" value="%s">
     </div>
 
     <div class="col-12">
-        <button type="submit" class="btn btn-primary">Search</button>
+        <button type="submit" class="btn btn-primary">Get info</button>
     </div>
 </form>
 HTML;
