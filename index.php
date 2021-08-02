@@ -10,8 +10,6 @@ require_once('ytdl.php');
 
 $Y = new YTDL();
 
-// if its a dl request - perform it
-$Y->download();
 
 // collect info
 $Y->setVideoId();

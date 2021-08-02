@@ -14,24 +14,6 @@ class YTDL {
     public $videoData = array(); // general video infos
     public $links = array(); // array of var quality links
 
-    /**
-     * Fetches info from a remote URL
-     */
-    private function fetchInfo($url) {
-        $ch = curl_init();
-        curl_setopt_array($ch, [
-            CURLOPT_URL => $url,
-            CURLOPT_RETURNTRANSFER => 1,
-            CURLOPT_HEADER => 0,
-        ]);
-
-        $result = curl_exec($ch);
-        
-        curl_close($ch);
-
-        return $result;
-    }
-    
 
     function setVideoId($id = '') {
         if (empty($id)) {
@@ -117,7 +99,7 @@ class YTDL {
      */
     function linksHtml() {
         $tmpl = <<<EOFHTML
-<h1>%s</h1>
+<h2 class="text-secondary">%s</h2>
 <div>
     <a href="http://www.youtube.com/watch?v=%s" target="_blank"><img src="%s" border="0"></a>
 </div>
@@ -139,7 +121,7 @@ EOFHTML;
         $row_template = <<<EOFROW
 <tr>
     <td>
-        <a href="/?action=download&mime=%s&url=%s&title=%s">%s</a>
+        <a href="%s" target="_blank">%s</a>
     </td>
     <td>%d&times;%d</td>
     <td>%s</td>
@@ -151,9 +133,7 @@ EOFROW;
         foreach ($this->links as $L) {
             array_push($rows, sprintf(
                 $row_template,
-                base64_encode($L['mimeType']),
-                base64_encode($L['url']),
-                base64_encode($this->videoData['title']),
+                $L['url'],
                 $L['qualityLabel'] ?? $L['quality'],
                 $L['width'],
                 $L['height'],
@@ -174,7 +154,7 @@ EOFROW;
     
     public function pageHtml($content = '')
     {
-        $tmpl = file_get_contents('ytdl.html');
+        $tmpl = file_get_contents('index.html');
         return sprintf( $tmpl, $content);
     }
     
@@ -195,39 +175,29 @@ HTML;
         return sprintf($tmpl, $this->videoId);
     }
     
-    function getInfo() {
-        if( empty($this->videoId)) {
-            return NULL;
+    public function getInfo()
+    {
+        if (empty($this->videoId)) {
+            return;
         }
-        $infoUrl = "https://www.youtube.com/get_video_info?&video_id=" . $this->videoId;
-        $infoLine = $this->fetchInfo( $infoUrl);
 
-        $this->parseVideoData( $infoLine); // fills 'videoData' property
+        $infoUrl = "https://www.youtube.com/get_video_info?&video_id=" . $this->videoId;
+ 
+        // fetch data
+        $ch = curl_init();
+        curl_setopt_array($ch, [
+            CURLOPT_URL => $url,
+            CURLOPT_RETURNTRANSFER => 1,
+            CURLOPT_HEADER => 0,
+        ]);
+
+        $infoLine = curl_exec($ch);
+        curl_close($ch);
+
+        
+        $this->parseVideoData($infoLine); // fills 'videoData' property
         $n = $this->parseFormats();
         
         return $n;
     }	
-    
-    /**
-     * Checks if the call is a download attempt and processes it.
-     * Otherwise just returns FALSE
-     */
-    function download() {
-        $action = filter_input( INPUT_GET, 'action', FILTER_SANITIZE_STRING);
-        if( $action !== 'download') return FALSE;
-        
-        $url = base64_decode( filter_input( INPUT_GET, 'url', FILTER_SANITIZE_STRING));
-        $mime = base64_decode( filter_input( INPUT_GET, 'mime', FILTER_SANITIZE_STRING));
-        $title = base64_decode( filter_input( INPUT_GET, 'title', FILTER_SANITIZE_STRING));
-        
-        $extension = str_replace( array('/', 'x-'), '', strstr( strstr($mime,';',TRUE)?:$mime, '/'));
-                
-        header('Content-Type: "' . $mime . '"');
-        header('Content-Disposition: attachment; filename="' . urldecode($title.'.'.$extension) . '"');
-        header("Content-Transfer-Encoding: binary");
-        header('Expires: 0');
-        header('Pragma: no-cache');
-        readfile($url);
-        exit();
-    }
 }

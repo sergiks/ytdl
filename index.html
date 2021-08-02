@@ -22,8 +22,31 @@
             A list of link to video files in various resolutions and codecs will display to choose from and save to yout device.
         </p>
         <p class="text-end small"><a href="https://github.com/sergiks/ytdl" target="_blank">GitHub</a></p>
-        %s
+
+        <section id="forma">
+            <form class="row row-cols-lg-auto g-3 align-items-center my-5" action="/" method="post" name="getvideo">
+                <div class="col-12">
+                    <input name="video" type="text" class="form-control" id="video" placeholder="YouTube video url">
+                </div>
+            
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary">Get info</button>
+                </div>
+            </form>
+        </section>
+
+
     </div>
+    <script>
+        const form = document.querySelector('#forma form');
+        form.addEventListener('submit', (event) => {
+            console.log('Video id:', inVideo.value);
+            // event.preventDefault();
+            return false;
+        });
+        const inVideo = document.getElementById('video');
+
+    </script>
 </body>
 
 </html>
